@@ -3,7 +3,7 @@
 const CACHE = 'tutorpanel';
 const FILES = ['./', 'style.css', 'manifest.webmanifest', 'icons/icon-192.png', 'vendor/preact-htm.mjs',
   'js/app.js', 'js/store.js', 'js/data.js', 'js/dates.js', 'js/schedule.js',
-  'js/ui/shared.js', 'js/ui/forms.js', 'js/ui/students.js', 'js/ui/student.js', 'js/ui/week.js', 'js/ui/settings.js'];
+  'js/ui/shared.js', 'js/ui/forms.js', 'js/ui/students.js', 'js/ui/student.js', 'js/ui/week.js', 'js/ui/lessons.js', 'js/ui/settings.js'];
 
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));

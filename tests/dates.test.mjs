@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, dayDiff, weekday, mondayOf, endTime, fmtDate, fmtDay, fmtWeek, holidays, isHoliday, todayStr, timeStr } from '../js/dates.js';
+import { addDays, dayDiff, weekday, mondayOf, endTime, monthAhead, fmtDate, fmtDay, fmtWeek, holidays, isHoliday, todayStr, timeStr } from '../js/dates.js';
 
 test('day arithmetic ignores daylight-saving changes', () => {
   assert.equal(addDays('2026-10-20', 7), '2026-10-27');           // across the 25 Oct 2026 change
@@ -45,4 +45,15 @@ test('Polish public holidays', () => {
   assert.ok(isHoliday('2026-11-11'));
   assert.ok(!isHoliday('2026-11-12'));
   assert.ok(!isHoliday('2024-12-24'));                            // Christmas Eve is a holiday only from 2025
+});
+
+test('one calendar month ahead', () => {
+  assert.equal(monthAhead('2026-11-10'), '2026-12-09');
+  assert.equal(monthAhead('2026-12-15'), '2027-01-14');           // across the year
+  assert.equal(monthAhead('2027-01-28'), '2027-02-27');
+  assert.equal(monthAhead('2027-01-29'), '2027-02-28');           // no 29 Feb in 2027 -> end of February
+  assert.equal(monthAhead('2027-01-31'), '2027-02-28');
+  assert.equal(monthAhead('2028-01-31'), '2028-02-29');           // leap year
+  assert.equal(monthAhead('2027-03-31'), '2027-04-30');
+  assert.equal(monthAhead('2027-02-01'), '2027-02-28');
 });

@@ -4,8 +4,8 @@
 //   pauses   - "disable next X weeks" ranges per student.
 // An occurrence: { key, studentId, date, start, minutes, slotId, origDate, meetingId, disabled, paused, off }.
 
-import { addDays, dayDiff, weekday, mondayOf, endTime, toMin } from './dates.js';
-import { live, activeStudents, uid } from './data.js';
+import { addDays, dayDiff, weekday, mondayOf, endTime, toMin, monthAhead } from './dates.js';
+import { live, activeStudents, uid, NO_SUBJECT } from './data.js';
 
 export const LOOKBACK = 28;     // days searched before an exam for its "last lesson"
 export const CARD_EXAM_DAYS = 14;
@@ -51,25 +51,23 @@ export function occurrences(db, from, to) {
 export const nextLesson = (db, studentId, today, time) =>
   occurrences(db, today, addDays(today, AHEAD)).find(o => o.studentId === studentId && !o.off && stampOf(o, true) > today + ' ' + time) ?? null;
 
-// Students list: sections Earlier (only when "Show older" was tapped), Today, Tomorrow, Later (+ no lesson planned at the end).
-export function studentList(db, today, time, olderDays = 0) {
-  const now = today + ' ' + time, tomorrow = addDays(today, 1);
-  const occs = occurrences(db, addDays(today, -olderDays), addDays(today, AHEAD)).filter(o => !o.off);
-  const students = new Map(activeStudents(db).map(s => [s.id, s]));
-  const res = { earlier: [], today: [], tomorrow: [], later: [], none: [] };
-  for (const o of occs) if (o.date < today) res.earlier.push({ student: students.get(o.studentId), occ: o, done: true });
-  for (const s of students.values()) {
-    const mine = occs.filter(o => o.studentId === s.id && o.date >= today), todays = mine.filter(o => o.date === today);
-    if (todays.length) {
-      const occ = todays.find(o => stampOf(o, true) > now) ?? todays.at(-1);
-      res.today.push({ student: s, occ, done: stampOf(occ, true) <= now });
-    } else if (mine.length) res[mine[0].date === tomorrow ? 'tomorrow' : 'later'].push({ student: s, occ: mine[0], done: false });
-    else res.none.push({ student: s, occ: null, done: false });
+// Students tab: one group per subject in the Settings order ("No subject" last), names A–Z (Polish order) inside each group.
+export function studentsBySubject(db) {
+  const subjects = live(db.subjects), groups = subjects.map(subject => ({ subject, students: [] })), none = { subject: NO_SUBJECT, students: [] };
+  for (const s of activeStudents(db)) (groups.find(g => g.subject.id === s.subjectId) ?? none).students.push(s);
+  for (const g of [...groups, none]) g.students.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'pl'));
+  return [...groups, none].filter(g => g.students.length);
+}
+
+// Daily view: every day from (today - olderDays) to one calendar month ahead that has lessons; disabled and paused ones are left out.
+export function lessonDays(db, today, olderDays = 0) {
+  const days = [];
+  for (const o of occurrences(db, addDays(today, -olderDays), monthAhead(today))) {
+    if (o.off) continue;
+    if (days.at(-1)?.date !== o.date) days.push({ date: o.date, lessons: [] });
+    days.at(-1).lessons.push(o);
   }
-  const byTime = (a, b) => stampOf(a.occ).localeCompare(stampOf(b.occ)) || a.student.name.localeCompare(b.student.name);
-  res.today.sort(byTime); res.tomorrow.sort(byTime); res.later.sort(byTime);
-  res.none.sort((a, b) => a.student.name.localeCompare(b.student.name));
-  return res;
+  return days;
 }
 
 export function recapMissing(db, o, today, time) {

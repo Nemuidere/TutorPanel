@@ -1,10 +1,10 @@
-import { render, useEffect, useReducer, useErrorBoundary } from '../vendor/preact-htm.mjs';
+import { render, useReducer, useErrorBoundary } from '../vendor/preact-htm.mjs';
 import { html, now, SheetHost, UndoBar } from './ui/shared.js';
 import { state, init, subscribe, saveNow, chooseFolder } from './store.js';
 import { mondayOf } from './dates.js';
 import { Students } from './ui/students.js';
 import { Student } from './ui/student.js';
-import { Week } from './ui/week.js';
+import { Lessons } from './ui/lessons.js';
 import { Settings, Welcome, ConflictDialog } from './ui/settings.js';
 
 function Banner() {
@@ -26,24 +26,26 @@ function Guard({ children }) {
     <a class="btn big" href="#/settings">Open Settings</a></main>`;
 }
 
+// Re-render on navigation, data changes and every minute ("now", today's lessons, the now line).
+// Registered before the first render, so an early tap or data change is never missed.
+let refresh = () => {};
+addEventListener('hashchange', () => refresh());
+subscribe(() => refresh());
+setInterval(() => refresh(), 60000);
+
 function App() {
-  const [, refresh] = useReducer(x => x + 1, 0);
-  useEffect(() => subscribe(refresh), []);
-  useEffect(() => {
-    const t = setInterval(refresh, 60000);            // keeps "now", today's grouping and the now line current
-    addEventListener('hashchange', refresh);
-    return () => { clearInterval(t); removeEventListener('hashchange', refresh); };
-  }, []);
+  [, refresh] = useReducer(x => x + 1, 0);
   if (state.status === 'no-folder') return html`<${Welcome} />`;
 
   const [, route = '', arg = ''] = location.hash.match(/^#\/(\w*)\/?(.*)$/) ?? [];
-  const tab = route === 'week' ? 'week' : route === '' ? 'students' : null;
+  const tab = route === 'lessons' ? 'lessons' : route === '' ? 'students' : null;
   const screen = route === 'student' ? html`<${Student} key=${arg} id=${arg} />`
-    : route === 'week' ? html`<${Week} monday=${/^\d{4}-\d{2}-\d{2}$/.test(arg) ? mondayOf(arg) : mondayOf(now().today)} />`
+    : route === 'lessons' ? html`<${Lessons} view=${arg.startsWith('week') ? 'week' : 'day'}
+        monday=${/\d{4}-\d{2}-\d{2}$/.test(arg) ? mondayOf(arg.slice(-10)) : mondayOf(now().today)} />`
     : route === 'settings' ? html`<${Settings} />`
     : html`<${Students} />`;
   return html`<${Banner} /><${Guard} key=${location.hash}>${screen}<//>
-    ${tab && html`<nav class="tabs"><a href="#/" class=${tab === 'students' ? 'on' : ''}>Students</a><a href="#/week" class=${tab === 'week' ? 'on' : ''}>Week</a></nav>`}
+    ${tab && html`<nav class="tabs"><a href="#/" class=${tab === 'students' ? 'on' : ''}>Students</a><a href="#/lessons" class=${tab === 'lessons' ? 'on' : ''}>Lessons</a></nav>`}
     <${SheetHost} /><${UndoBar} />${state.status === 'conflict' && html`<${ConflictDialog} />`}`;
 }
 

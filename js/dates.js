@@ -10,6 +10,14 @@ export const dayDiff = (a, b) => Math.round((ms(b) - ms(a)) / 864e5);
 export const weekday = s => (new Date(ms(s)).getUTCDay() + 6) % 7 + 1; // 1 = Monday … 7 = Sunday
 export const mondayOf = s => addDays(s, 1 - weekday(s));
 
+// Last day of "one calendar month" from s: the day before the same date next month (10 Nov -> 9 Dec).
+// If next month has no such date (31 Jan), the month runs to the end of next month (28/29 Feb).
+export function monthAhead(s) {
+  const y = +s.slice(0, 4), m = +s.slice(5, 7), d = +s.slice(8, 10);
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1, last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return d <= last ? addDays(`${ny}-${pad(nm)}-${pad(d)}`, -1) : `${ny}-${pad(nm)}-${pad(last)}`;
+}
+
 export const toMin = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 export const fromMin = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
 export const endTime = (start, minutes) => fromMin(toMin(start) + minutes);

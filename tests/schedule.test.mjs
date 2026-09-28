@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyDb } from '../js/data.js';
 import {
-  slotDates, occurrences, nextLesson, studentList, recapMissing, entryDate, planFor, examMarks, examLabel, examBadge,
+  slotDates, occurrences, nextLesson, studentsBySubject, lessonDays, recapMissing, entryDate, planFor, examMarks, examLabel, examBadge,
   cardExam, overlaps, slotCandidates, pauseRange, hourRange, lanes, changeLesson, changeSlotFrom, stopSlotFrom,
 } from '../js/schedule.js';
 
@@ -63,28 +63,39 @@ test('next lesson skips disabled/paused, counts a lesson in progress', () => {
   assert.equal(nextLesson(db, 'new', TODAY, NOW), null);
 });
 
-test('students list: today (incl. done), tomorrow, later, none, earlier', () => {
+test('students grouped by subject in Settings order, names in Polish order', () => {
   const db = fixture();
-  db.students.push({ id: 'bartek', name: 'Bartek', subjectId: 'math', created: '2026-09-01' });
-  db.meetings.push({ id: 'm9', studentId: 'zosia', date: '2026-11-11', start: '10:00', minutes: 60, slotId: null, origDate: null, disabled: false });
-  const l = studentList(db, TODAY, NOW);
-  assert.deepEqual(l.today.map(x => [x.student.id, x.occ.start, x.done]), [['kuba', '15:00', true], ['ania', '17:00', false]]);
-  assert.deepEqual(l.tomorrow.map(x => [x.student.id, x.occ.start]), [['zosia', '10:00'], ['ola', '16:30']]);
-  assert.deepEqual(l.later.map(x => x.student.id), []);
-  assert.deepEqual(l.none.map(x => x.student.id), ['bartek']);
-  assert.deepEqual(l.earlier, []);
-  const o = studentList(db, TODAY, NOW, 7);
-  assert.deepEqual(keys(o.earlier.map(x => x.occ)), ['kuba 2026-11-03 15:00', 'ania 2026-11-03 17:00']);
-  assert.deepEqual(keys(studentList(db, TODAY, NOW, 14).earlier.map(x => x.occ)),
-    ['kuba 2026-10-27 15:00', 'ania 2026-10-27 17:00', 'ola 2026-10-28 16:30', 'kuba 2026-11-03 15:00', 'ania 2026-11-03 17:00']);
+  const st = (id, name, subjectId) => db.students.push({ id, name, subjectId, created: '2026-09-01' });
+  st('lena', 'Lena', 'english'); st('lukasz', 'Łukasz', 'english'); st('ewa', 'Ewa', 'english'); st('nosub', 'Adam', '');
+  st('gone', 'Basia', 'physics');                                                  // unknown subject -> "No subject"
+  db.students.push({ id: 'arch', name: 'Aaron', subjectId: 'math', archived: true });
+  db.subjects.push({ id: 'physics', name: 'Physics', color: '#ffeb3b', deleted: true });
+  const g = studentsBySubject(db);
+  assert.deepEqual(g.map(x => [x.subject.name, x.students.map(s => s.name)]), [
+    ['Math', ['Ania', 'Kuba', 'Ola', 'Zosia']],
+    ['English', ['Ewa', 'Lena', 'Łukasz']],
+    ['No subject', ['Adam', 'Basia']],
+  ]);
+  db.subjects.reverse();                                                           // the Settings order decides
+  assert.deepEqual(studentsBySubject(db).map(x => x.subject.name), ['English', 'Math', 'No subject']);
 });
 
-test('students list: tomorrow vs later ordering', () => {
+test('lesson days: one entry per day with lessons, up to one calendar month, repeats every time', () => {
   const db = fixture();
-  const l = studentList(db, '2026-11-12', '12:00');   // Thu: nobody today; Ola is every 2nd Wed (next 25 Nov); Ania/Kuba next Tue
-  assert.deepEqual(l.today, []);
-  assert.deepEqual(l.tomorrow, []);
-  assert.deepEqual(l.later.map(x => [x.student.id, x.occ.date]), [['kuba', '2026-11-17'], ['ania', '2026-11-17'], ['ola', '2026-11-25']]);
+  changeLesson(db, { studentId: 'kuba', date: '2026-11-17', start: '15:00', minutes: 45, slotId: 's2', origDate: '2026-11-17' }, { disabled: true });
+  db.pauses.push({ id: 'p', studentId: 'ola', from: '2026-11-23', until: '2026-11-29' });
+  const days = lessonDays(db, TODAY);
+  assert.equal(days[0].date, TODAY);
+  assert.equal(days.at(-1).date, '2026-12-09');                                     // 10 Nov -> 9 Dec
+  assert.ok(days.every(d => d.lessons.length > 0));
+  const all = days.flatMap(d => d.lessons);
+  assert.deepEqual(all.filter(o => o.studentId === 'ania').map(o => o.date), ['2026-11-10', '2026-11-17', '2026-11-24', '2026-12-01', '2026-12-08']);
+  assert.deepEqual(all.filter(o => o.studentId === 'kuba').map(o => o.date), ['2026-11-10', '2026-11-24', '2026-12-01', '2026-12-08']);   // disabled 17 Nov left out
+  assert.deepEqual(all.filter(o => o.studentId === 'ola').map(o => o.date), ['2026-11-11', '2026-12-09']);                              // paused 25 Nov left out
+  assert.deepEqual(days.map(d => d.date), ['2026-11-10', '2026-11-11', '2026-11-17', '2026-11-24', '2026-12-01', '2026-12-08', '2026-12-09']);   // no empty days
+  assert.deepEqual(days[0].lessons.map(o => o.start), ['15:00', '17:00']);
+  const older = lessonDays(db, TODAY, 7);
+  assert.deepEqual(older.slice(0, 2).map(d => d.date), ['2026-11-03', '2026-11-10']);
 });
 
 test('recap missing, default entry date, plan for next time', () => {

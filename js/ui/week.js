@@ -7,7 +7,7 @@ import { occurrences, examMarks, examLabel, examBadge, recapMissing, hourRange, 
 import { addDays, dayName, fmtDate, fmtWeek, isHoliday, endTime, toMin } from '../dates.js';
 
 const findIn = (db, list, id) => db[list].find(x => x.id === id);
-const goWeek = monday => location.replace('#/week/' + monday);   // replace: the back gesture leaves the calendar instead of stepping through weeks
+const goWeek = monday => location.replace('#/lessons/week/' + monday);   // replace: the back gesture leaves the calendar instead of stepping through weeks
 
 export function Week({ monday }) {
   const db = state.db, { today, time } = now(), days = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(monday, i));
@@ -38,7 +38,7 @@ export function Week({ monday }) {
 
   return html`<header><button class="btn icon" aria-label="Previous week" onClick=${() => goWeek(addDays(monday, -7))}>‹</button>
       <div class="center">${fmtWeek(monday)}</div>
-      <button class="btn" onClick=${() => location.replace('#/week')}>Today</button>
+      <button class="btn" onClick=${() => location.replace('#/lessons/week')}>Today</button>
       <button class="btn icon" aria-label="Next week" onClick=${() => goWeek(addDays(monday, 7))}>›</button></header>
     <div class="week" onPointerDown=${onDown} onPointerUp=${onUp} onPointerCancel=${() => { swipe.current = null; }}>
       <div class="dh"></div>
@@ -56,7 +56,8 @@ export function Week({ monday }) {
     </div>`;
 }
 
-function LessonMenu({ o }) {
+// Tapping a lesson (weekly grid or daily list).
+export function LessonMenu({ o }) {
   const [weeks, setWeeks] = useState(1);
   const db = state.db, s = byId(db.students, o.studentId), sub = subjectOf(db, s), { today, time } = now();
   const mark = examMarks(db, o.date, o.date).get(o.key);
