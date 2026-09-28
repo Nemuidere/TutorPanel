@@ -135,7 +135,7 @@ export function EntryForm({ studentId, entryId, date }) {
   const del = () => { undoable('Lesson entry deleted', db => { findIn(db, 'lessons', entryId).deleted = true; }); closeSheet(); };
   return html`<h3>${l ? 'Edit lesson entry' : 'New lesson entry'}</h3>
     <${Field} label="Date"><input type="date" value=${f.date} onInput=${e => set({ ...f, date: e.target.value })} /><//>
-    <${Field} label="What we did"><textarea value=${f.recap} onInput=${e => set({ ...f, recap: e.target.value })} /><//>
+    <${Field} label="What we did"><textarea autofocus value=${f.recap} onInput=${e => set({ ...f, recap: e.target.value })} /><//>
     <${Field} label="Plan for next time / homework"><textarea value=${f.plan} onInput=${e => set({ ...f, plan: e.target.value })} /><//>
     <${Buttons} onSave=${save} extra=${l && html`<button class="btn danger" onClick=${del}>Delete</button>`} />`;
 }

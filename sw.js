@@ -1,7 +1,11 @@
 // Offline support: the newest code when online, the saved copy when offline or when the network takes longer than 3 s.
+// FILES is saved on install, so even the first launch after installing works offline next time (tests/sw.test.mjs checks the list).
 const CACHE = 'tutorpanel';
+const FILES = ['./', 'style.css', 'manifest.webmanifest', 'icons/icon-192.png', 'vendor/preact-htm.mjs',
+  'js/app.js', 'js/store.js', 'js/data.js', 'js/dates.js', 'js/schedule.js',
+  'js/ui/shared.js', 'js/ui/forms.js', 'js/ui/students.js', 'js/ui/student.js', 'js/ui/week.js', 'js/ui/settings.js'];
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('fetch', e => {
