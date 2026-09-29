@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { emptyDb } from '../js/data.js';
 import {
   slotDates, occurrences, nextLesson, studentsBySubject, lessonDays, recapMissing, entryDate, planFor, examMarks, examLabel, examBadge,
-  cardExam, overlaps, slotCandidates, pauseRange, hourRange, lanes, changeLesson, changeSlotFrom, stopSlotFrom,
+  cardExam, overlaps, slotCandidates, pauseRange, nextWeekdayDate, hourRange, lanes, changeLesson, changeSlotFrom, stopSlotFrom,
 } from '../js/schedule.js';
 
 // Reference "now": Tue 10 Nov 2026, 16:30.
@@ -193,4 +193,13 @@ test('pause range, slot change from a date, hour range, lanes', () => {
   assert.deepEqual(hourRange([{ start: '10:00', minutes: 90 }, { start: '20:30', minutes: 60 }]), [10, 22]);
   const day = lanes([{ start: '15:00', minutes: 90 }, { start: '16:00', minutes: 60 }, { start: '18:00', minutes: 60 }]);
   assert.deepEqual(day.map(o => [o.lane, o.lanes]), [[0, 2], [1, 2], [0, 1]]);
+});
+
+test('next date for a weekday', () => {
+  assert.equal(nextWeekdayDate(TODAY, NOW, 2, '17:00'), TODAY);          // Tue, still ahead today
+  assert.equal(nextWeekdayDate(TODAY, NOW, 2, '16:30'), '2026-11-17');   // Tue, already started -> next week
+  assert.equal(nextWeekdayDate(TODAY, NOW, 2, '15:00'), '2026-11-17');
+  assert.equal(nextWeekdayDate(TODAY, NOW, 3, '09:00'), '2026-11-11');   // Wed -> tomorrow
+  assert.equal(nextWeekdayDate(TODAY, NOW, 1, '17:00'), '2026-11-16');   // Mon -> next Monday
+  assert.equal(nextWeekdayDate(TODAY, NOW, 7, '10:00'), '2026-11-15');
 });

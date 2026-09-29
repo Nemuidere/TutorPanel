@@ -1,6 +1,7 @@
 import { useState } from '../../vendor/preact-htm.mjs';
 import { html, now, byId, openSheet, Seg } from './shared.js';
 import { Week, LessonMenu } from './week.js';
+import { AddLessonForm } from './forms.js';
 import { state } from '../store.js';
 import { subjectOf, textColor } from '../data.js';
 import { lessonDays, examMarks, examLabel, recapMissing } from '../schedule.js';
@@ -34,5 +35,6 @@ function Daily() {
     ${older > 0 && !days.some(d => d.date < today) && html`<div class="muted" style="text-align:center">No lessons in the last ${older} days.</div>`}
     ${days.map(d => html`<div class="divider">${label(d.date)}</div>${d.lessons.map(card)}`)}
     ${!days.some(d => d.date >= today) && html`<div class="empty">No lessons in the coming month.</div>`}
-  </div></main>`;
+  </div></main>
+  <button class="fab" aria-label="Add lesson" onClick=${() => openSheet(() => html`<${AddLessonForm} />`)}>+</button>`;
 }

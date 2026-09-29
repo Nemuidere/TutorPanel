@@ -1,6 +1,6 @@
 import { useState } from '../../vendor/preact-htm.mjs';
 import { html, now, byId, openSheet, undoable } from './shared.js';
-import { StudentForm, PhoneForm, SlotForm, StopSlotForm, LessonForm, EntryForm, ExamForm, TextForm } from './forms.js';
+import { StudentForm, PhoneForm, AddLessonForm, SlotForm, StopSlotForm, LessonForm, EntryForm, ExamForm, TextForm } from './forms.js';
 import { state, commit } from '../store.js';
 import { subjectOf, fmtPhone, smsHref, mapsHref, live } from '../data.js';
 import { nextLesson, planFor, entries, entryDate, cardExam, activePauses, slotDates } from '../schedule.js';
@@ -47,16 +47,15 @@ export function Student({ id }) {
       <div class="box"><h2>Next lesson</h2>
         <div class="big">${next ? `${day(next.date)} · ${next.start} (${next.minutes} min)` : 'No lesson planned'}</div>
         ${slots.map(x => html`<div class="item" onClick=${() => openSheet(() => html`<h3>Recurring lesson</h3>
-            <button class="opt" onClick=${() => sheet(SlotForm, { studentId: id, slotId: x.id })}>Change from a date…</button>
+            <button class="opt" onClick=${() => sheet(SlotForm, { slotId: x.id })}>Change from a date…</button>
             <button class="opt" onClick=${() => sheet(StopSlotForm, { slotId: x.id })}>Stop from a date…</button>`)}>
           <span class="grow">Every${x.everyWeeks === 2 ? ' 2nd' : ''} ${dayName(x.weekday)} ${x.start} · ${x.minutes} min</span>
           <span class="muted">${first(x) > today ? 'from ' + fmtDate(first(x)) : ''}${x.until ? ' last ' + fmtDate(last(x)) : ''}</span></div>`)}
-        ${oneOffs.map(m => html`<div class="item" onClick=${() => sheet(LessonForm, { studentId: id, meetingId: m.id })}>
+        ${oneOffs.map(m => html`<div class="item" onClick=${() => sheet(LessonForm, { meetingId: m.id })}>
           <span class="grow">One-off ${day(m.date)} ${m.start} · ${m.minutes} min</span>${m.disabled && html`<span class="muted">disabled</span>`}</div>`)}
         ${pauses.map(p => html`<div class="item"><span class="grow">Paused ${fmtDate(p.from)} – ${fmtDate(p.until)}</span>
           <button class="btn" onClick=${() => undoable('Lessons resumed', d => { findIn(d, 'pauses', p.id).deleted = true; })}>Resume</button></div>`)}
-        <div class="actions"><button class="btn" onClick=${() => sheet(LessonForm, { studentId: id })}>+ One-off</button>
-          <button class="btn" onClick=${() => sheet(SlotForm, { studentId: id })}>+ Recurring</button></div></div>
+        <div class="actions"><button class="btn pri" onClick=${() => sheet(AddLessonForm, { studentId: id })}>+ Add lesson</button></div></div>
 
       <div class="box"><h2>Contacts</h2>
         ${phones.map(p => html`<div class="item" onClick=${() => sheet(PhoneForm, { studentId: id, phoneId: p.id })}>

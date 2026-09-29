@@ -3,7 +3,7 @@ import { html, now, byId, closeSheet, undoable, Field, Seg, Duration, WEEKDAYS, 
 import { state, commit } from '../store.js';
 import { uid, live, NO_SUBJECT } from '../data.js';
 import { fmtDate, endTime, weekday, addDays } from '../dates.js';
-import { overlaps, slotCandidates, slotDates, changeLesson, changeSlotFrom, stopSlotFrom } from '../schedule.js';
+import { overlaps, slotCandidates, slotDates, changeLesson, changeSlotFrom, stopSlotFrom, nextWeekdayDate, studentsBySubject } from '../schedule.js';
 
 const name = id => byId(state.db.students, id)?.name ?? '?';
 const findIn = (db, list, id) => db[list].find(x => x.id === id);
@@ -61,29 +61,63 @@ export function PhoneForm({ studentId, phoneId }) {
     <${Buttons} onSave=${save} extra=${p && html`<button class="btn danger" onClick=${del}>Delete</button>`} />`;
 }
 
-// New recurring slot, or "change from date" for an existing one.
-export function SlotForm({ studentId, slotId }) {
-  const s = slotId && byId(state.db.slots, slotId), { today } = now();
-  const nextDate = s && slotDates(s, today > s.from ? today : s.from, addDays(today, 400))[0];
-  const [f, set] = useState({ weekday: s?.weekday ?? weekday(today), start: s?.start ?? '17:00', minutes: s?.minutes ?? 60,
-    everyWeeks: s?.everyWeeks ?? 1, from: nextDate ?? today });
+// Add a lesson: once, every week or every 2 weeks. Without a studentId (Daily view) the student is picked here.
+export function AddLessonForm({ studentId }) {
+  const { today, time } = now();
+  const [f, set] = useState(() => {
+    const wd = weekday(today);
+    return { studentId: studentId ?? '', weekday: wd, date: nextWeekdayDate(today, time, wd, '17:00'), start: '17:00', minutes: 60, every: 1 };
+  });
+  const [error, setError] = useState('');
+  const ov = useOverlap();
+  const save = () => {
+    if (!f.studentId) return setError('Choose a student.');
+    if (!f.date || !f.start) return;
+    const lesson = { date: f.date, start: f.start, minutes: f.minutes };
+    const slot = { weekday: weekday(f.date), start: f.start, minutes: f.minutes, everyWeeks: f.every, from: f.date };
+    ov.check(overlaps(state.db, f.every ? slotCandidates(slot) : [lesson]), () => {
+      if (f.every) commit(db => db.slots.push({ id: uid('sl'), studentId: f.studentId, ...slot, until: null }));
+      else commit(db => db.meetings.push({ id: uid('m'), studentId: f.studentId, ...lesson, slotId: null, origDate: null, disabled: false }));
+      closeSheet();
+    });
+  };
+  return html`<h3>Add lesson</h3>
+    ${!studentId && html`<${Field} label="Student"><select value=${f.studentId} onChange=${e => { setError(''); set({ ...f, studentId: e.target.value }); }}>
+      <option value="">Choose a student…</option>
+      ${studentsBySubject(state.db).map(g => g.students.map(s => html`<option value=${s.id}>${s.name} · ${g.subject.name}</option>`))}</select><//>`}
+    ${error && html`<div class="warnbox">${error}</div>`}
+    <div class="field"><span>Day</span><${Seg} options=${WEEKDAYS} value=${f.weekday}
+      onChange=${v => set({ ...f, weekday: v, date: nextWeekdayDate(today, time, v, f.start) })} /></div>
+    <${Field} label=${f.every ? 'First lesson on' : 'Date'}><input type="date" value=${f.date}
+      onInput=${e => set({ ...f, date: e.target.value, weekday: e.target.value ? weekday(e.target.value) : f.weekday })} /><//>
+    <${Field} label="Start"><input type="time" value=${f.start} onInput=${e => set({ ...f, start: e.target.value })} /><//>
+    <${Duration} value=${f.minutes} onChange=${v => set({ ...f, minutes: v })} />
+    <div class="field"><span>Repeat</span><${Seg} options=${[[0, 'Once'], [1, 'Every week'], [2, 'Every 2 weeks']]} value=${f.every}
+      onChange=${v => set({ ...f, every: v })} /></div>
+    ${ov.box}
+    <${Buttons} onSave=${save} saveText=${ov.saveText} />`;
+}
+
+// "Change from a date" for a recurring lesson: earlier lessons keep the old values.
+export function SlotForm({ slotId }) {
+  const s = byId(state.db.slots, slotId), { today } = now();
+  const nextDate = slotDates(s, today > s.from ? today : s.from, addDays(today, 400))[0];
+  const [f, set] = useState({ weekday: s.weekday, start: s.start, minutes: s.minutes, everyWeeks: s.everyWeeks ?? 1, from: nextDate ?? today });
   const ov = useOverlap();
   const save = () => {
     if (!f.start || !f.from) return;
     const fields = { weekday: f.weekday, start: f.start, minutes: f.minutes, everyWeeks: f.everyWeeks };
-    const hits = overlaps(state.db, slotCandidates({ ...fields, from: f.from }), o => o.studentId === studentId && o.slotId === slotId && o.date >= f.from);
-    ov.check(hits, () => {
-      if (s) commit(db => changeSlotFrom(db, slotId, f.from, fields));
-      else commit(db => db.slots.push({ id: uid('sl'), studentId, ...fields, from: f.from, until: null }));
+    ov.check(overlaps(state.db, slotCandidates({ ...fields, from: f.from }), o => o.slotId === slotId && o.date >= f.from), () => {
+      commit(db => changeSlotFrom(db, slotId, f.from, fields));
       closeSheet();
     });
   };
-  return html`<h3>${s ? 'Change recurring lesson' : 'New recurring lesson'}</h3>
+  return html`<h3>Change recurring lesson</h3>
     <div class="field"><span>Day</span><${Seg} options=${WEEKDAYS} value=${f.weekday} onChange=${v => set({ ...f, weekday: v })} /></div>
     <${Field} label="Start"><input type="time" value=${f.start} onInput=${e => set({ ...f, start: e.target.value })} /><//>
     <${Duration} value=${f.minutes} onChange=${v => set({ ...f, minutes: v })} />
     <div class="field"><span>Repeat</span><${Seg} options=${[[1, 'Every week'], [2, 'Every 2 weeks']]} value=${f.everyWeeks} onChange=${v => set({ ...f, everyWeeks: v })} /></div>
-    <${Field} label=${s ? 'Change from (earlier lessons stay as they were)' : 'Starting'}><input type="date" value=${f.from} onInput=${e => set({ ...f, from: e.target.value })} /><//>
+    <${Field} label="Change from (earlier lessons stay as they were)"><input type="date" value=${f.from} onInput=${e => set({ ...f, from: e.target.value })} /><//>
     ${ov.box}
     <${Buttons} onSave=${save} saveText=${ov.saveText} />`;
 }
@@ -98,8 +132,8 @@ export function StopSlotForm({ slotId }) {
     <${Buttons} onSave=${save} saveText="Stop" />`;
 }
 
-// One-off lesson (new or edit), or "change this lesson" for a lesson from the calendar (occ).
-export function LessonForm({ studentId, meetingId, occ }) {
+// Edit a one-off lesson, or "change this lesson" for a lesson from the calendar (occ).
+export function LessonForm({ meetingId, occ }) {
   const m = meetingId && byId(state.db.meetings, meetingId), src = occ ?? m;
   const [f, set] = useState({ date: src?.date ?? now().today, start: src?.start ?? '17:00', minutes: src?.minutes ?? 60 });
   const ov = useOverlap();
@@ -108,13 +142,12 @@ export function LessonForm({ studentId, meetingId, occ }) {
     const key = occ?.key ?? meetingId;
     ov.check(overlaps(state.db, [f], o => o.key === key), () => {
       if (occ) commit(db => changeLesson(db, occ, { ...f }));
-      else if (m) commit(db => Object.assign(findIn(db, 'meetings', meetingId), f));
-      else commit(db => db.meetings.push({ id: uid('m'), studentId, ...f, slotId: null, origDate: null, disabled: false }));
+      else commit(db => Object.assign(findIn(db, 'meetings', meetingId), f));
       closeSheet();
     });
   };
   const del = () => { undoable('Lesson deleted', db => { findIn(db, 'meetings', meetingId).deleted = true; }); closeSheet(); };
-  return html`<h3>${occ ? 'Change this lesson' : m ? 'Edit one-off lesson' : 'New one-off lesson'}</h3>
+  return html`<h3>${occ ? 'Change this lesson' : 'Edit one-off lesson'}</h3>
     ${occ && html`<p class="muted">Only this one lesson changes.</p>`}
     <${Field} label="Date"><input type="date" value=${f.date} onInput=${e => set({ ...f, date: e.target.value })} /><//>
     <${Field} label="Start"><input type="time" value=${f.start} onInput=${e => set({ ...f, start: e.target.value })} /><//>

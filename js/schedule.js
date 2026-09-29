@@ -126,6 +126,12 @@ export function overlaps(db, candidates, ignore = () => false) {
 }
 export const slotCandidates = (slot, weeks = 8) => slotDates(slot, slot.from, addDays(slot.from, weeks * 7 - 1)).map(date => ({ date, start: slot.start, minutes: slot.minutes }));
 
+// Date of the next lesson on a weekday: today if its start time is still ahead, otherwise the next such day.
+export function nextWeekdayDate(today, time, wd, start) {
+  const d = addDays(today, (wd - weekday(today) + 7) % 7);
+  return d === today && start <= time ? addDays(d, 7) : d;
+}
+
 // "Disable next X weeks": from the Monday after the tapped lesson's week, X full weeks.
 export function pauseRange(date, weeks) {
   const from = addDays(mondayOf(date), 7);
